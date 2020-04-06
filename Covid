@@ -1,0 +1,136 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar 24 19:20:03 2020
+
+@author: Saravanan
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+dataset = pd.read_csv("C:/Users/Saravanan/Downloads/covid_19_data.csv", parse_dates = ["Last Update"])
+#Renaming the Column
+dataset.rename(columns = {'ObservationDate' :'Date','Country/Region' : 'Country'}, inplace = True)
+print(dataset.columns)
+
+print(dataset.dtypes)
+
+dataset.isnull().sum().to_frame('nulls')
+
+df = dataset.groupby(["Date","Country"])[['Date','Country','Confirmed','Deaths','Recovered']].sum().reset_index()
+
+# grouping and Rating Confirmed,Death, recovered
+Confirmed_Sorted = df.sort_values('Confirmed',ascending = False)
+Confirmed_Sorted = Confirmed_Sorted.drop_duplicates('Country')
+
+Confirmed_cases = Confirmed_Sorted["Confirmed"].sum()
+Death_cases = Confirmed_Sorted["Deaths"].sum()
+Recovered_cases = Confirmed_Sorted["Recovered"].sum()
+
+World_Death_rate = ((Death_cases * 100 )/ Confirmed_cases)
+World_Recovery_rate = ((Recovered_cases * 100)/Confirmed_cases)
+
+Active = Confirmed_cases - Death_cases-Recovered_cases
+
+China = Confirmed_Sorted[Confirmed_Sorted["Country"] == "Mainland China"]
+China_recovered_rate = (int(China["Recovered"].values)*100)/int(China["Confirmed"].values)
+
+Detail = {"Total Confirmed cases in the World" : Confirmed_cases,
+          "Total Death Cases in the world" : Death_cases,
+          "Totally Recovered cases in the World" : Recovered_cases,
+          "Active" : Active,
+          "Rate of Death cases %" : World_Death_rate,
+          "Rate of Recovery Rate %" : World_Recovery_rate,
+          "Rate of China_recovered_cases %": China_recovered_rate
+          }
+op = pd.DataFrame.from_dict(Detail,orient = 'index',columns = ["Total"])
+op.style.background_gradient(cmap = "Yellow")
+print(op)
+
+case_per_day = df.groupby(["Date"])[["Confirmed","Deaths","Recovered"]].sum().reset_index()
+Confirmed_cases_1 = case_per_day.sort_values("Date",ascending =False)
+
+x = case_per_day.index
+
+y1 = case_per_day.Confirmed
+y2 = case_per_day.Deaths
+y3 = case_per_day.Recovered
+
+# visualizing death,recoveryy, confrimed case
+sns.set(style = "whitegrid")
+f,ax = plt.subplots(figsize =(6,5))
+
+plt.scatter(x,y1,color = "yellow",label = "Confirmed_cases")
+plt.scatter(x,y2,color = "red", label = "Death_cases")
+plt.scatter(x,y3,color = "green", label = "Recovered_cases")
+plt.title("COVID 19")
+plt.legend(loc = "upper left", frameon = True)
+plt.show()
+
+#One day infected Cases
+df_date = dataset.groupby(["Date","Country"])[["Date","Country","Confirmed","Deaths"]].sum().reset_index()
+sort_diff_date = df_date.sort_values("Country",ascending = False)
+
+x1 = sort_diff_date[sort_diff_date.Date == '03/23/2020'].reset_index().drop('index',axis = 1)
+x2 = sort_diff_date[sort_diff_date.Date == '03/22/2020'].reset_index().drop('index',axis = 1)
+
+h = pd.merge(x2, x1,on = "Country")
+
+h["New Confirmed Cases"] = h["Confirmed_y"]-h["Confirmed_x"]
+h["New Death cases"] = h["Deaths_y"]-h["Deaths_x"]
+
+h1 = h.sort_values('New Confirmed Cases', ascending = False).head(50)
+h1 = h1.drop(["Confirmed_y","Confirmed_x","Deaths_y","Deaths_x","Date_x"],axis = 1)
+
+print("New confirmed cases in 23/03/2020")
+print(h1)
+#plotting Total cases Confirmed Countrywise
+sort_by_confirmed = Confirmed_Sorted.head(10)
+x = sort_by_confirmed.Country
+y = sort_by_confirmed.Confirmed
+plt.figure(figsize = (14,9))
+sns.barplot(x,y ,order =x, palette = "rocket").set_title("Total Cases confirmed by countrywise")
+plt.show()
+
+x_data = pd.DataFrame(case_per_day.index)
+y_data = pd.DataFrame(case_per_day.Confirmed)
+
+#Splitting train & test
+from sklearn.model_selection import train_test_split
+X_train,X_test,y_train,y_test = train_test_split(x_data,y_data,test_size = 0.1,random_state = 0)
+
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+#Polynomial features
+Poly_re = PolynomialFeatures(degree = 5)
+x_poly = Poly_re.fit_transform(X_train)
+lin_reg2 = LinearRegression()
+lin_reg2.fit(x_poly,y_train)
+
+x3 = case_per_day.index
+x4 = case_per_day.Confirmed
+
+#Visualizing
+plt.scatter(x3,x4, color = "red")
+plt.plot(X_test,lin_reg2.predict(Poly_re.fit_transform(X_test)),color = "blue")
+plt.title("Polynomial Regression Model")
+plt.show()
+
+#Predicting
+y_pred = lin_reg2.predict(Poly_re.fit_transform(X_test))
+
+# R2 Score 
+from sklearn.metrics import r2_score
+print("Polynomial Regression ",r2_score(y_test,y_pred))
+
+#Future Prediction
+print("After {0} day will be {1} case in the world".format((63-len(case_per_day)),lin_reg2.predict(Poly_re.fit_transform([[63]]))))
+
+
+
+
+
+
+
